@@ -325,20 +325,31 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::get('/deliveries', [
-        DeliveryController::class,
-        'index'
-    ]);
+    Route::middleware('role:Administrateur,Livreur')->group(function () {
 
-    Route::get('/deliveries/{delivery}', [
-        DeliveryController::class,
-        'show'
-    ]);
+        Route::get('/deliveries', [
+            DeliveryController::class,
+            'index'
+        ]);
 
-    Route::put('/deliveries/{delivery}', [
-        DeliveryController::class,
-        'update'
-    ]);
+        Route::get('/deliveries/{delivery}', [
+            DeliveryController::class,
+            'show'
+        ]);
+
+        Route::put('/deliveries/{delivery}', [
+            DeliveryController::class,
+            'update'
+        ]);
+    });
+
+    Route::middleware('role:Administrateur')->group(function () {
+
+        Route::post('/deliveries', [
+            DeliveryController::class,
+            'store'
+        ]);
+    });
 
 
     /*

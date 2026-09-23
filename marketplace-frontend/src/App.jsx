@@ -1,4 +1,3 @@
-
 import {
   BrowserRouter,
   Navigate,
@@ -6,10 +5,23 @@ import {
   Routes,
 } from "react-router-dom";
 
+// ======================================================
+// AUTHENTIFICATION
+// ======================================================
+
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 
+// ======================================================
+// NOTIFICATIONS
+// ======================================================
+
+import Notifications from "./pages/Notifications";
+
+// ======================================================
 // ADMIN
+// ======================================================
+
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import Users from "./pages/admin/Users";
 import Shops from "./pages/admin/Shops";
@@ -20,15 +32,20 @@ import Deliveries from "./pages/admin/Deliveries";
 import Coupons from "./pages/admin/Coupons";
 import Reviews from "./pages/admin/Reviews";
 import Commissions from "./pages/admin/Commissions";
-import Notifications from "./pages/admin/Notifications";
 
+// ======================================================
 // VENDEUR
+// ======================================================
+
 import VendeurDashboard from "./pages/vendeur/VendeurDashboard";
 import MyShop from "./pages/vendeur/MyShop";
 import VendeurProducts from "./pages/vendeur/Products";
 import VendeurOrders from "./pages/vendeur/Orders";
 
+// ======================================================
 // CLIENT
+// ======================================================
+
 import ClientDashboard from "./pages/client/ClientDashboard";
 import ClientProducts from "./pages/client/Products";
 import ProductDetails from "./pages/client/ProductDetails";
@@ -38,27 +55,27 @@ import ClientOrders from "./pages/client/Orders";
 import Favorites from "./pages/client/Favorites";
 import Addresses from "./pages/client/Addresses";
 
+// ======================================================
 // LIVREUR
+// ======================================================
+
 import LivreurDashboard from "./pages/livreur/LivreurDashboard";
 import LivreurDeliveries from "./pages/livreur/Deliveries";
 
+// ======================================================
+// PROTECTION DES ROUTES SELON LE ROLE
+// ======================================================
 
 function RoleRoute({ children, allowedRoles }) {
-  const token = localStorage.getItem(
-    "marketplace_token"
-  );
+  const token = localStorage.getItem("marketplace_token");
+  const storedUser = localStorage.getItem("marketplace_user");
 
-  const storedUser = localStorage.getItem(
-    "marketplace_user"
-  );
+  // ------------------------------------------------------
+  // Pas connecté
+  // ------------------------------------------------------
 
   if (!token || !storedUser) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
 
   let user;
@@ -66,136 +83,73 @@ function RoleRoute({ children, allowedRoles }) {
   try {
     user = JSON.parse(storedUser);
   } catch {
-    localStorage.removeItem(
-      "marketplace_token"
-    );
+    localStorage.removeItem("marketplace_token");
+    localStorage.removeItem("marketplace_user");
 
-    localStorage.removeItem(
-      "marketplace_user"
-    );
-
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
+
+  // ------------------------------------------------------
+  // Récupération du rôle
+  // ------------------------------------------------------
 
   const role = user?.role?.nom;
 
+  // ------------------------------------------------------
+  // Rôle non autorisé
+  // ------------------------------------------------------
+
   if (!allowedRoles.includes(role)) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
 
   return children;
 }
 
+// ======================================================
+// PROTECTION POUR LES UTILISATEURS CONNECTÉS
+// ======================================================
 
-function HomeRedirect() {
-  const token = localStorage.getItem(
-    "marketplace_token"
-  );
+function AuthRoute({ children }) {
+  const token = localStorage.getItem("marketplace_token");
+  const storedUser = localStorage.getItem("marketplace_user");
 
-  const storedUser = localStorage.getItem(
-    "marketplace_user"
-  );
+  // ------------------------------------------------------
+  // Pas connecté
+  // ------------------------------------------------------
 
   if (!token || !storedUser) {
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
+
+  // ------------------------------------------------------
+  // Vérification des données utilisateur
+  // ------------------------------------------------------
 
   try {
-    const user = JSON.parse(storedUser);
-    const role = user?.role?.nom;
-
-    switch (role) {
-      case "Administrateur":
-        return (
-          <Navigate
-            to="/admin"
-            replace
-          />
-        );
-
-      case "Vendeur":
-        return (
-          <Navigate
-            to="/vendeur"
-            replace
-          />
-        );
-
-      case "Client":
-        return (
-          <Navigate
-            to="/client"
-            replace
-          />
-        );
-
-      case "Livreur":
-        return (
-          <Navigate
-            to="/livreur"
-            replace
-          />
-        );
-
-      default:
-        localStorage.removeItem(
-          "marketplace_token"
-        );
-
-        localStorage.removeItem(
-          "marketplace_user"
-        );
-
-        return (
-          <Navigate
-            to="/login"
-            replace
-          />
-        );
-    }
+    JSON.parse(storedUser);
   } catch {
-    localStorage.removeItem(
-      "marketplace_token"
-    );
+    localStorage.removeItem("marketplace_token");
+    localStorage.removeItem("marketplace_user");
 
-    localStorage.removeItem(
-      "marketplace_user"
-    );
-
-    return (
-      <Navigate
-        to="/login"
-        replace
-      />
-    );
+    return <Navigate to="/login" replace />;
   }
+
+  return children;
 }
 
+// ======================================================
+// APPLICATION
+// ======================================================
 
 function App() {
   return (
     <BrowserRouter>
-
       <Routes>
 
-        {/* =========================
+        {/* ==================================================
             AUTHENTIFICATION
-        ========================= */}
+        ================================================== */}
 
         <Route
           path="/login"
@@ -207,19 +161,29 @@ function App() {
           element={<Register />}
         />
 
+        {/* ==================================================
+            NOTIFICATIONS
+            PAGE COMMUNE À TOUS LES UTILISATEURS CONNECTÉS
+        ================================================== */}
 
-        {/* =========================
+        <Route
+          path="/notifications"
+          element={
+            <AuthRoute>
+             
+              <Notifications />
+            </AuthRoute>
+          }
+        />
+
+        {/* ==================================================
             ADMIN
-        ========================= */}
+        ================================================== */}
 
         <Route
           path="/admin"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <AdminDashboard />
             </RoleRoute>
           }
@@ -228,11 +192,7 @@ function App() {
         <Route
           path="/admin/users"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Users />
             </RoleRoute>
           }
@@ -241,11 +201,7 @@ function App() {
         <Route
           path="/admin/shops"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Shops />
             </RoleRoute>
           }
@@ -254,11 +210,7 @@ function App() {
         <Route
           path="/admin/products"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Products />
             </RoleRoute>
           }
@@ -267,11 +219,7 @@ function App() {
         <Route
           path="/admin/categories"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Categories />
             </RoleRoute>
           }
@@ -280,11 +228,7 @@ function App() {
         <Route
           path="/admin/orders"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Orders />
             </RoleRoute>
           }
@@ -293,11 +237,7 @@ function App() {
         <Route
           path="/admin/deliveries"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Deliveries />
             </RoleRoute>
           }
@@ -306,11 +246,7 @@ function App() {
         <Route
           path="/admin/coupons"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Coupons />
             </RoleRoute>
           }
@@ -319,11 +255,7 @@ function App() {
         <Route
           path="/admin/reviews"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Reviews />
             </RoleRoute>
           }
@@ -332,40 +264,20 @@ function App() {
         <Route
           path="/admin/commissions"
           element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
+            <RoleRoute allowedRoles={["Administrateur"]}>
               <Commissions />
             </RoleRoute>
           }
         />
 
-        <Route
-          path="/admin/notifications"
-          element={
-            <RoleRoute
-              allowedRoles={[
-                "Administrateur",
-              ]}
-            >
-              <Notifications />
-            </RoleRoute>
-          }
-        />
-
-
-        {/* =========================
+        {/* ==================================================
             VENDEUR
-        ========================= */}
+        ================================================== */}
 
         <Route
           path="/vendeur"
           element={
-            <RoleRoute
-              allowedRoles={["Vendeur"]}
-            >
+            <RoleRoute allowedRoles={["Vendeur"]}>
               <VendeurDashboard />
             </RoleRoute>
           }
@@ -374,9 +286,7 @@ function App() {
         <Route
           path="/vendeur/shop"
           element={
-            <RoleRoute
-              allowedRoles={["Vendeur"]}
-            >
+            <RoleRoute allowedRoles={["Vendeur"]}>
               <MyShop />
             </RoleRoute>
           }
@@ -385,9 +295,7 @@ function App() {
         <Route
           path="/vendeur/products"
           element={
-            <RoleRoute
-              allowedRoles={["Vendeur"]}
-            >
+            <RoleRoute allowedRoles={["Vendeur"]}>
               <VendeurProducts />
             </RoleRoute>
           }
@@ -396,25 +304,20 @@ function App() {
         <Route
           path="/vendeur/orders"
           element={
-            <RoleRoute
-              allowedRoles={["Vendeur"]}
-            >
+            <RoleRoute allowedRoles={["Vendeur"]}>
               <VendeurOrders />
             </RoleRoute>
           }
         />
 
-
-        {/* =========================
+        {/* ==================================================
             CLIENT
-        ========================= */}
+        ================================================== */}
 
         <Route
           path="/client"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <ClientDashboard />
             </RoleRoute>
           }
@@ -423,9 +326,7 @@ function App() {
         <Route
           path="/client/products"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <ClientProducts />
             </RoleRoute>
           }
@@ -434,9 +335,7 @@ function App() {
         <Route
           path="/client/products/:id"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <ProductDetails />
             </RoleRoute>
           }
@@ -445,21 +344,16 @@ function App() {
         <Route
           path="/client/cart"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <Cart />
             </RoleRoute>
           }
         />
 
-        {/* CHECKOUT */}
         <Route
           path="/client/checkout"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <Checkout />
             </RoleRoute>
           }
@@ -468,9 +362,7 @@ function App() {
         <Route
           path="/client/orders"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <ClientOrders />
             </RoleRoute>
           }
@@ -479,9 +371,7 @@ function App() {
         <Route
           path="/client/favorites"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <Favorites />
             </RoleRoute>
           }
@@ -490,25 +380,20 @@ function App() {
         <Route
           path="/client/addresses"
           element={
-            <RoleRoute
-              allowedRoles={["Client"]}
-            >
+            <RoleRoute allowedRoles={["Client"]}>
               <Addresses />
             </RoleRoute>
           }
         />
 
-
-        {/* =========================
+        {/* ==================================================
             LIVREUR
-        ========================= */}
+        ================================================== */}
 
         <Route
           path="/livreur"
           element={
-            <RoleRoute
-              allowedRoles={["Livreur"]}
-            >
+            <RoleRoute allowedRoles={["Livreur"]}>
               <LivreurDashboard />
             </RoleRoute>
           }
@@ -517,34 +402,33 @@ function App() {
         <Route
           path="/livreur/deliveries"
           element={
-            <RoleRoute
-              allowedRoles={["Livreur"]}
-            >
+            <RoleRoute allowedRoles={["Livreur"]}>
               <LivreurDeliveries />
             </RoleRoute>
           }
         />
 
-
-        {/* =========================
-            REDIRECTIONS
-        ========================= */}
+        {/* ==================================================
+            PAGE PAR DEFAUT
+        ================================================== */}
 
         <Route
           path="/"
-          element={<HomeRedirect />}
+          element={<Navigate to="/login" replace />}
         />
+
+        {/* ==================================================
+            URL INCONNUE
+        ================================================== */}
 
         <Route
           path="*"
-          element={<HomeRedirect />}
+          element={<Navigate to="/login" replace />}
         />
 
       </Routes>
-
     </BrowserRouter>
   );
 }
 
 export default App;
-

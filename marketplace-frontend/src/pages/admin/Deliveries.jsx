@@ -1,190 +1,392 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import api from "../../services/api";
 
-function Deliveries() {
+export default function Deliveries() {
   const [deliveries, setDeliveries] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [users, setUsers] = useState([]);
+
+  const [selectedOrder, setSelectedOrder] = useState("");
+  const [selectedLivreur, setSelectedLivreur] =
+    useState("");
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [assigning, setAssigning] = useState(false);
 
-  const loadDeliveries = async () => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
     try {
-      setLoading(true);
-      setError("");
+      const [
+        deliveriesResponse,
+        ordersResponse,
+        usersResponse,
+      ] = await Promise.all([
+        api.get("/deliveries"),
+        api.get("/orders"),
+        api.get("/users"),
+      ]);
 
-      const response = await api.get("/deliveries");
-
-      setDeliveries(
-        Array.isArray(response.data)
-          ? response.data
-          : response.data.data || []
-      );
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.response?.data?.message ||
-          "Impossible de charger les livraisons."
+      setDeliveries(deliveriesResponse.data);
+      setOrders(ordersResponse.data);
+      setUsers(usersResponse.data);
+    } catch (error) {
+      console.error(
+        "Erreur lors du chargement des données :",
+        error
       );
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadDeliveries();
-  }, []);
+  const livreurs = users.filter(
+    (user) =>
+      user.role?.nom === "Livreur"
+  );
 
-  const updateStatus = async (
-    delivery,
-    status
-  ) => {
+  const availableOrders = orders.filter(
+    (order) =>
+      !deliveries.some(
+        (delivery) =>
+          delivery.order_id === order.id
+      )
+  );
+
+  const assignDelivery = async (event) => {
+    event.preventDefault();
+
+    if (
+      !selectedOrder ||
+      !selectedLivreur
+    ) {
+      alert(
+        "Veuillez sélectionner une commande et un livreur."
+      );
+      return;
+    }
+
     try {
-      await api.put(
-        `/deliveries/${delivery.id}`,
+      setAssigning(true);
+
+      const response = await api.post(
+        "/deliveries",
         {
-          statut: status,
+          order_id: selectedOrder,
+          livreur_id: selectedLivreur,
         }
       );
 
-      await loadDeliveries();
-    } catch (err) {
-      console.error(err);
+      setDeliveries((currentDeliveries) => [
+        response.data.delivery,
+        ...currentDeliveries,
+      ]);
+
+      setSelectedOrder("");
+      setSelectedLivreur("");
 
       alert(
-        err.response?.data?.message ||
-          "Impossible de modifier la livraison."
+        "Livraison affectée avec succès."
       );
+    } catch (error) {
+      console.error(
+        "Erreur lors de l'affectation :",
+        error
+      );
+
+      alert(
+        error.response?.data?.message ||
+          "Impossible d'affecter la livraison."
+      );
+    } finally {
+      setAssigning(false);
     }
+  };
+
+  const getStatusLabel = (status) => {
+    const labels = {
+      en_attente: "En attente",
+      recuperee: "Récupérée",
+      en_cours: "En cours",
+      livree: "Livrée",
+      echec: "Échec",
+    };
+
+    return labels[status] || status;
+  };
+
+  const getStatusClass = (status) => {
+    const classes = {
+      en_attente:
+        "bg-orange-100 text-orange-700",
+      recuperee:
+        "bg-indigo-100 text-indigo-700",
+      en_cours:
+        "bg-blue-100 text-blue-700",
+      livree:
+        "bg-green-100 text-green-700",
+      echec:
+        "bg-red-100 text-red-700",
+    };
+
+    return (
+      classes[status] ||
+      "bg-gray-100 text-gray-700"
+    );
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <p className="text-sm font-medium text-slate-500">
-            Administration
-          </p>
+      <div className="min-h-screen bg-gray-50 p-6">
 
-          <h1 className="mt-1 text-3xl font-bold text-slate-900">
-            Livraisons
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Gestion des livraisons
           </h1>
 
-          <p className="mt-2 text-sm text-slate-500">
-            Suivez l'état des livraisons.
+          <p className="mt-1 text-sm text-gray-500">
+            Affectez les commandes aux livreurs et suivez les livraisons.
           </p>
         </div>
 
-        {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <div className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="mb-5">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Affecter une livraison
+            </h2>
+
+            <p className="mt-1 text-sm text-gray-500">
+              Sélectionnez une commande et le livreur responsable.
+            </p>
+          </div>
+
+          <form
+            onSubmit={assignDelivery}
+            className="grid grid-cols-1 gap-4 md:grid-cols-3"
+          >
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Commande
+              </label>
+
+              <select
+                value={selectedOrder}
+                onChange={(event) =>
+                  setSelectedOrder(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="">
+                  Sélectionner une commande
+                </option>
+
+                {availableOrders.map(
+                  (order) => (
+                    <option
+                      key={order.id}
+                      value={order.id}
+                    >
+                      {order.numero
+                        ? order.numero
+                        : `Commande #${order.id}`}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Livreur
+              </label>
+
+              <select
+                value={selectedLivreur}
+                onChange={(event) =>
+                  setSelectedLivreur(
+                    event.target.value
+                  )
+                }
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              >
+                <option value="">
+                  Sélectionner un livreur
+                </option>
+
+                {livreurs.map(
+                  (livreur) => (
+                    <option
+                      key={livreur.id}
+                      value={livreur.id}
+                    >
+                      {livreur.nom ||
+                        livreur.name ||
+                        livreur.email}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={assigning}
+                className="w-full rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {assigning
+                  ? "Affectation..."
+                  : "Affecter la livraison"}
+              </button>
+            </div>
+
+          </form>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+
+          <div className="border-b border-gray-200 px-6 py-5">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Toutes les livraisons
+            </h2>
+          </div>
+
           {loading ? (
-            <div className="p-10 text-center text-sm text-slate-500">
-              Chargement des livraisons...
+            <div className="p-10 text-center">
+              <p className="text-sm text-gray-500">
+                Chargement...
+              </p>
             </div>
           ) : deliveries.length === 0 ? (
-            <div className="p-10 text-center text-sm text-slate-500">
-              Aucune livraison.
+            <div className="p-10 text-center">
+
+              <div className="mb-3 text-4xl">
+                🚚
+              </div>
+
+              <h3 className="font-semibold text-gray-800">
+                Aucune livraison
+              </h3>
+
+              <p className="mt-1 text-sm text-gray-500">
+                Aucune livraison n'a encore été créée.
+              </p>
+
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b border-slate-200 bg-slate-50">
+
+              <table className="w-full text-left">
+
+                <thead className="border-b border-gray-200 bg-gray-50">
                   <tr>
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-gray-500">
+                      Livraison
+                    </th>
+
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-gray-500">
                       Commande
                     </th>
 
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-gray-500">
                       Livreur
                     </th>
 
-                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-gray-500">
                       Statut
                     </th>
 
-                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Modifier
+                    <th className="px-6 py-4 text-xs font-semibold uppercase text-gray-500">
+                      Affectation
                     </th>
                   </tr>
                 </thead>
 
-                <tbody>
-                  {deliveries.map((delivery) => (
-                    <tr
-                      key={delivery.id}
-                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
-                    >
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-slate-800">
-                          {delivery.order?.numero ||
-                            `#${delivery.order_id}`}
-                        </p>
-                      </td>
+                <tbody className="divide-y divide-gray-100">
 
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        {delivery.livreur?.nom ||
-                          "Non affecté"}
-                      </td>
+                  {deliveries.map(
+                    (delivery) => (
+                      <tr
+                        key={delivery.id}
+                        className="hover:bg-gray-50"
+                      >
 
-                      <td className="px-5 py-4">
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                          {delivery.statut}
-                        </span>
-                      </td>
+                        <td className="px-6 py-4">
+                          <span className="font-medium text-gray-900">
+                            #{delivery.id}
+                          </span>
+                        </td>
 
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end">
-                          <select
-                            value={
-                              delivery.statut || ""
-                            }
-                            onChange={(event) =>
-                              updateStatus(
-                                delivery,
-                                event.target.value
-                              )
-                            }
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs outline-none focus:border-slate-900"
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-700">
+                            {delivery.order?.numero ||
+                              `Commande #${delivery.order_id}`}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">
+                              {delivery.livreur?.nom ||
+                                delivery.livreur?.name ||
+                                delivery.livreur?.email ||
+                                "Livreur"}
+                            </p>
+
+                            {delivery.livreur?.email && (
+                              <p className="text-xs text-gray-400">
+                                {delivery.livreur.email}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        <td className="px-6 py-4">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                              delivery.statut
+                            )}`}
                           >
-                            <option value="en_attente">
-                              En attente
-                            </option>
+                            {getStatusLabel(
+                              delivery.statut
+                            )}
+                          </span>
+                        </td>
 
-                            <option value="recuperee">
-                              Récupérée
-                            </option>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-gray-500">
+                            {delivery.date_affectation
+                              ? new Date(
+                                  delivery.date_affectation
+                                ).toLocaleDateString(
+                                  "fr-FR"
+                                )
+                              : "-"}
+                          </span>
+                        </td>
 
-                            <option value="en_cours">
-                              En cours
-                            </option>
+                      </tr>
+                    )
+                  )}
 
-                            <option value="livree">
-                              Livrée
-                            </option>
-
-                            <option value="echec">
-                              Échec
-                            </option>
-                          </select>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
                 </tbody>
+
               </table>
+
             </div>
           )}
+
         </div>
+
       </div>
     </DashboardLayout>
   );
 }
-
-export default Deliveries;
