@@ -13,6 +13,11 @@ return [
     | a conventional file to locate the various service credentials.
     |
     */
+                                'paypal' => [
+                                'client_id' => env('PAYPAL_CLIENT_ID'),
+                                'client_secret' => env('PAYPAL_CLIENT_SECRET'),
+                                'mode' => env('PAYPAL_MODE', 'sandbox'),
+                            ],
 
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),

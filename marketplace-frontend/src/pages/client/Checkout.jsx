@@ -29,12 +29,12 @@ function Checkout() {
 
   const [cart, setCart] = useState(null);
   const [addresses, setAddresses] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
   const [selectedAddressId, setSelectedAddressId] = useState("");
-
+  const [paymentMethod, setPaymentMethod] = useState(
+    "paiement_a_la_livraison"
+  );
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -49,6 +49,7 @@ function Checkout() {
         ]);
 
         const cartData = cartResponse.data;
+
         const addressesData = Array.isArray(addressesResponse.data)
           ? addressesResponse.data
           : [];
@@ -117,11 +118,11 @@ function Checkout() {
   }, [items]);
 
   const deliveryFee = 30;
-
   const total = subtotal + deliveryFee;
 
   const selectedAddress = addresses.find(
-    (address) => String(address.id) === String(selectedAddressId)
+    (address) =>
+      String(address.id) === String(selectedAddressId)
   );
 
   const handleSubmit = async (event) => {
@@ -132,39 +133,103 @@ function Checkout() {
       return;
     }
 
+    if (!paymentMethod) {
+      setError("Veuillez sélectionner un mode de paiement.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
     try {
-      const response = await api.post("/orders", {
+      /*
+      |--------------------------------------------------------------------------
+      | PayPal
+      |--------------------------------------------------------------------------
+      |
+      | Cette requête crée uniquement une commande PayPal.
+      | Elle ne crée PAS encore une commande Marketplace.
+      |
+      */
+
+      if (paymentMethod === "paypal") {
+        const paymentResponse = await api.post(
+          "/orders/payment/paypal",
+          {
+            address_id: Number(selectedAddressId),
+          }
+        );
+
+        const approvalUrl =
+          paymentResponse.data?.paypal?.approval_url;
+
+        if (!approvalUrl) {
+          throw new Error(
+            "L'URL de paiement PayPal est introuvable."
+          );
+        }
+
+        window.location.href = approvalUrl;
+
+        return;
+      }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Paiement à la livraison
+      |--------------------------------------------------------------------------
+      |
+      | Pour le paiement à la livraison, la commande Marketplace
+      | est créée directement.
+      |
+      */
+
+      const orderResponse = await api.post("/orders", {
         address_id: Number(selectedAddressId),
       });
 
-      const order = response.data?.order;
+      const order = orderResponse.data?.order;
 
-      if (order?.id) {
-        navigate("/client/orders", {
-          state: {
-            successMessage:
-              response.data?.message ||
-              "Commande créée avec succès.",
-            orderId: order.id,
-          },
-        });
-      } else {
-        navigate("/client/orders");
+      if (!order?.id) {
+        throw new Error(
+          "La commande n'a pas pu être créée."
+        );
       }
+
+      navigate("/client/orders", {
+        state: {
+          successMessage:
+            orderResponse.data?.message ||
+            "Commande créée avec succès.",
+          orderId: order.id,
+        },
+      });
     } catch (err) {
       console.error(err);
 
       setError(
         err.response?.data?.message ||
+          err.message ||
           "Impossible de créer la commande."
       );
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
+
+          <p className="mt-4 text-sm text-slate-500">
+            Préparation de votre commande...
+          </p>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -176,7 +241,7 @@ function Checkout() {
           </h1>
 
           <p className="mt-1 text-sm text-slate-500">
-            Sélectionnez votre adresse et vérifiez votre commande.
+            Sélectionnez votre adresse et votre mode de paiement.
           </p>
         </div>
 
@@ -186,198 +251,202 @@ function Checkout() {
           </div>
         )}
 
-        {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
-
-            <p className="mt-4 text-sm text-slate-500">
-              Préparation de votre commande...
-            </p>
-          </div>
-        ) : addresses.length === 0 ? (
+        {addresses.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
 
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
               <svg
-                width="30"
-                height="30"
-                viewBox="0 0 24 24"
+                className="h-8 w-8 text-slate-500"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.6"
+                viewBox="0 0 24 24"
               >
-                <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
-                <circle cx="12" cy="10" r="2.5" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"
+                />
+
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
               </svg>
             </div>
 
-            <h2 className="mt-5 text-lg font-semibold text-slate-900">
+            <h2 className="mt-4 text-lg font-semibold text-slate-900">
               Aucune adresse de livraison
             </h2>
 
-            <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-              Vous devez ajouter une adresse avant de pouvoir
-              passer votre commande.
+            <p className="mt-2 text-sm text-slate-500">
+              Ajoutez une adresse avant de continuer.
             </p>
 
             <button
               type="button"
               onClick={() => navigate("/client/addresses")}
-              className="mt-6 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="mt-6 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               Ajouter une adresse
             </button>
-
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
+
             <div className="grid gap-6 lg:grid-cols-3">
 
               <div className="space-y-6 lg:col-span-2">
 
+                {/* Address */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-900">
-                        Adresse de livraison
-                      </h2>
+                  <div className="mb-5">
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Adresse de livraison
+                    </h2>
 
-                      <p className="mt-1 text-sm text-slate-500">
-                        Où souhaitez-vous recevoir votre commande ?
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate("/client/addresses")
-                      }
-                      className="text-sm font-medium text-slate-700 hover:text-slate-900 hover:underline"
-                    >
-                      Gérer mes adresses
-                    </button>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Choisissez l'adresse où votre commande sera livrée.
+                    </p>
                   </div>
 
-                  <div className="mt-5 space-y-3">
+                  <div className="space-y-3">
 
-                    {addresses.map((address) => {
-                      const selected =
-                        String(address.id) ===
-                        String(selectedAddressId);
+                    {addresses.map((address) => (
+                      <label
+                        key={address.id}
+                        className={`block cursor-pointer rounded-xl border p-4 transition ${
+                          String(selectedAddressId) ===
+                          String(address.id)
+                            ? "border-slate-900 bg-slate-50"
+                            : "border-slate-200 hover:border-slate-400"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
 
-                      return (
-                        <label
-                          key={address.id}
-                          className={[
-                            "block cursor-pointer rounded-xl border p-4 transition",
-                            selected
-                              ? "border-slate-900 bg-slate-50"
-                              : "border-slate-200 hover:border-slate-300",
-                          ].join(" ")}
-                        >
-                          <div className="flex items-start gap-3">
+                          <input
+                            type="radio"
+                            name="address"
+                            value={address.id}
+                            checked={
+                              String(selectedAddressId) ===
+                              String(address.id)
+                            }
+                            onChange={(e) =>
+                              setSelectedAddressId(e.target.value)
+                            }
+                            className="mt-1 h-4 w-4"
+                          />
 
-                            <input
-                              type="radio"
-                              name="address"
-                              value={address.id}
-                              checked={selected}
-                              onChange={(event) =>
-                                setSelectedAddressId(
-                                  event.target.value
-                                )
-                              }
-                              className="mt-1 h-4 w-4 accent-slate-900"
-                            />
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              {address.nom ||
+                                address.name ||
+                                "Adresse de livraison"}
+                            </p>
 
-                            <div className="flex-1">
-                              <p className="font-semibold text-slate-900">
-                                {address.adresse}
-                              </p>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {address.adresse ||
+                                address.address ||
+                                ""}
+                            </p>
 
+                            <p className="mt-1 text-sm text-slate-600">
+                              {address.ville ||
+                                address.city ||
+                                ""}
+                            </p>
+
+                            {address.telephone && (
                               <p className="mt-1 text-sm text-slate-500">
-                                {address.ville}
-                                {address.code_postal
-                                  ? `, ${address.code_postal}`
-                                  : ""}
+                                {address.telephone}
                               </p>
-
-                              <p className="mt-1 text-sm text-slate-500">
-                                {address.pays || "Maroc"}
-                              </p>
-                            </div>
-
+                            )}
                           </div>
-                        </label>
-                      );
-                    })}
+
+                        </div>
+                      </label>
+                    ))}
 
                   </div>
                 </div>
 
+                {/* Products */}
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    Articles commandés
-                  </h2>
+                  <div className="mb-5">
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Articles commandés
+                    </h2>
 
-                  <div className="mt-5 divide-y divide-slate-100">
+                    <p className="mt-1 text-sm text-slate-500">
+                      Vérifiez les articles avant de confirmer.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
 
                     {items.map((item) => {
-                      const product = item.product;
                       const price = getProductPrice(item);
+
                       const quantity = Number(
                         item.quantite || 0
                       );
-                      const imageUrl = getImageUrl(
-                        product?.images?.[0]?.chemin
-                      );
+
+                      const image =
+                        item.product?.image_principale ||
+                        item.product?.image ||
+                        item.product?.images?.[0]?.url ||
+                        item.product?.images?.[0]?.path;
 
                       return (
                         <div
                           key={item.id}
-                          className="flex gap-4 py-4 first:pt-0 last:pb-0"
+                          className="flex gap-4 rounded-xl border border-slate-200 p-4"
                         >
 
                           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                            {imageUrl ? (
+
+                            {image ? (
                               <img
-                                src={imageUrl}
-                                alt={product?.nom || "Produit"}
+                                src={getImageUrl(image)}
+                                alt={
+                                  item.product?.nom ||
+                                  "Produit"
+                                }
                                 className="h-full w-full object-cover"
                               />
                             ) : (
-                              <div className="flex h-full w-full items-center justify-center">
-                                <span className="text-xl font-bold text-slate-300">
-                                  {product?.nom
-                                    ?.charAt(0)
-                                    ?.toUpperCase() || "P"}
-                                </span>
+                              <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
+                                No image
                               </div>
                             )}
+
                           </div>
 
                           <div className="min-w-0 flex-1">
 
-                            <h3 className="truncate font-semibold text-slate-900">
-                              {product?.nom ||
-                                `Produit #${item.product_id}`}
+                            <h3 className="font-semibold text-slate-900">
+                              {item.product?.nom ||
+                                "Produit"}
                             </h3>
 
                             <p className="mt-1 text-sm text-slate-500">
                               Quantité : {quantity}
                             </p>
 
-                            <p className="mt-1 text-sm font-medium text-slate-700">
-                              {price.toFixed(2)} DH / unité
+                            <p className="mt-2 text-sm font-semibold text-slate-900">
+                              {price.toFixed(2)} MAD
                             </p>
 
                           </div>
 
-                          <div className="shrink-0 text-right">
-                            <p className="font-semibold text-slate-900">
-                              {(price * quantity).toFixed(2)} DH
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {(price * quantity).toFixed(2)} MAD
                             </p>
                           </div>
 
@@ -388,112 +457,228 @@ function Checkout() {
                   </div>
                 </div>
 
+                {/* Payment method */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+
+                  <div className="mb-5">
+                    <h2 className="text-lg font-semibold text-slate-900">
+                      Mode de paiement
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-500">
+                      Choisissez comment vous souhaitez payer.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+
+                    {/* Cash on delivery */}
+                    <label
+                      className={`block cursor-pointer rounded-xl border p-4 transition ${
+                        paymentMethod ===
+                        "paiement_a_la_livraison"
+                          ? "border-slate-900 bg-slate-50"
+                          : "border-slate-200 hover:border-slate-400"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value="paiement_a_la_livraison"
+                          checked={
+                            paymentMethod ===
+                            "paiement_a_la_livraison"
+                          }
+                          onChange={(e) =>
+                            setPaymentMethod(e.target.value)
+                          }
+                          className="mt-1 h-4 w-4"
+                        />
+
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            Paiement à la livraison
+                          </p>
+
+                          <p className="mt-1 text-sm text-slate-500">
+                            Vous paierez lors de la réception de votre commande.
+                          </p>
+                        </div>
+
+                      </div>
+                    </label>
+
+                    {/* PayPal */}
+                    <label
+                      className={`block cursor-pointer rounded-xl border p-4 transition ${
+                        paymentMethod === "paypal"
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-slate-200 hover:border-slate-400"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value="paypal"
+                          checked={paymentMethod === "paypal"}
+                          onChange={(e) =>
+                            setPaymentMethod(e.target.value)
+                          }
+                          className="mt-1 h-4 w-4"
+                        />
+
+                        <div className="flex-1">
+
+                          <div className="flex items-center gap-3">
+
+                            <div className="rounded-lg bg-[#0070ba] px-3 py-1.5 text-sm font-bold text-white">
+                              PayPal
+                            </div>
+
+                            <p className="font-semibold text-slate-900">
+                              Paiement avec PayPal
+                            </p>
+
+                          </div>
+
+                          <p className="mt-2 text-sm text-slate-500">
+                            Vous serez redirigé vers PayPal Sandbox pour effectuer le paiement de test.
+                          </p>
+
+                        </div>
+
+                      </div>
+                    </label>
+
+                  </div>
+                </div>
+
               </div>
 
-              <div className="h-fit rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-24">
+              {/* Summary */}
+              <div className="lg:col-span-1">
 
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Résumé
-                </h2>
+                <div className="sticky top-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
 
-                <div className="mt-6 space-y-4">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    Résumé
+                  </h2>
 
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">
-                      Sous-total
-                    </span>
+                  <div className="mt-5 space-y-3 text-sm">
 
-                    <span className="font-medium text-slate-700">
-                      {subtotal.toFixed(2)} DH
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">
-                      Livraison
-                    </span>
-
-                    <span className="font-medium text-slate-700">
-                      {deliveryFee.toFixed(2)} DH
-                    </span>
-                  </div>
-
-                  <div className="border-t border-slate-200 pt-4">
-
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-900">
-                        Total
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">
+                        Sous-total
                       </span>
 
-                      <span className="text-xl font-bold text-slate-900">
-                        {total.toFixed(2)} DH
+                      <span className="font-medium text-slate-900">
+                        {subtotal.toFixed(2)} MAD
                       </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">
+                        Livraison
+                      </span>
+
+                      <span className="font-medium text-slate-900">
+                        {deliveryFee.toFixed(2)} MAD
+                      </span>
+                    </div>
+
+                    <div className="border-t border-slate-200 pt-3">
+
+                      <div className="flex justify-between">
+
+                        <span className="font-semibold text-slate-900">
+                          Total
+                        </span>
+
+                        <span className="text-xl font-bold text-slate-900">
+                          {total.toFixed(2)} MAD
+                        </span>
+
+                      </div>
+
                     </div>
 
                   </div>
 
-                </div>
+                  {selectedAddress && (
+                    <div className="mt-5 rounded-xl bg-slate-50 p-4">
 
-                {selectedAddress && (
-                  <div className="mt-6 rounded-xl bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Livraison
+                      </p>
 
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                      Livraison à
+                      <p className="mt-2 text-sm font-medium text-slate-900">
+                        {selectedAddress.nom ||
+                          selectedAddress.name ||
+                          "Adresse"}
+                      </p>
+
+                      <p className="mt-1 text-sm text-slate-600">
+                        {selectedAddress.adresse ||
+                          selectedAddress.address ||
+                          ""}
+                      </p>
+
+                      <p className="text-sm text-slate-600">
+                        {selectedAddress.ville ||
+                          selectedAddress.city ||
+                          ""}
+                      </p>
+
+                    </div>
+                  )}
+
+                  <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
+
+                    <p className="text-sm font-semibold text-blue-900">
+                      {paymentMethod === "paypal"
+                        ? "Paiement PayPal Sandbox"
+                        : "Paiement à la livraison"}
                     </p>
 
-                    <p className="mt-2 text-sm font-semibold text-slate-800">
-                      {selectedAddress.adresse}
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                      {selectedAddress.ville}
-                      {selectedAddress.code_postal
-                        ? `, ${selectedAddress.code_postal}`
-                        : ""}
-                    </p>
-
-                    <p className="text-sm text-slate-500">
-                      {selectedAddress.pays || "Maroc"}
+                    <p className="mt-1 text-xs leading-5 text-blue-700">
+                      {paymentMethod === "paypal"
+                        ? "Vous allez être redirigé vers PayPal Sandbox pour utiliser un compte ou des moyens de paiement de test."
+                        : "Vous paierez votre commande lors de sa réception."}
                     </p>
 
                   </div>
-                )}
 
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <button
+                    type="submit"
+                    disabled={
+                      submitting ||
+                      !selectedAddressId ||
+                      !paymentMethod
+                    }
+                    className="mt-6 w-full rounded-xl bg-slate-900 px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {submitting
+                      ? paymentMethod === "paypal"
+                        ? "Redirection vers PayPal..."
+                        : "Création de la commande..."
+                      : paymentMethod === "paypal"
+                      ? "Payer avec PayPal"
+                      : "Confirmer la commande"}
+                  </button>
 
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    Paiement
-                  </p>
-
-                  <p className="mt-2 text-sm font-semibold text-slate-800">
-                    Paiement à la livraison
-                  </p>
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    Vous paierez lors de la réception de votre commande.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/client/cart")}
+                    className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Retour au panier
+                  </button>
 
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={submitting || !selectedAddressId}
-                  className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {submitting
-                    ? "Création de la commande..."
-                    : "Confirmer la commande"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("/client/cart")}
-                  disabled={submitting}
-                  className="mt-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
-                >
-                  Retour au panier
-                </button>
-
               </div>
 
             </div>

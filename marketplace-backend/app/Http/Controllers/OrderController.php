@@ -58,7 +58,6 @@ class OrderController extends Controller
         return response()->json($orders);
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | CLIENT - Créer une commande
@@ -97,7 +96,6 @@ class OrderController extends Controller
         }
 
         foreach ($cart->items as $item) {
-
             if (!$item->product) {
                 return response()->json([
                     'message' => 'Un produit du panier est introuvable.',
@@ -112,16 +110,55 @@ class OrderController extends Controller
             }
         }
 
-        $order = DB::transaction(function () use (
+        $order = $this->createOrderFromCart(
             $user,
             $address,
             $cart
-        ) {
+        );
 
+        return response()->json([
+            'message' => 'Commande créée avec succès.',
+            'order' => $order->load([
+                'client',
+                'items.product',
+                'items.shop',
+                'address',
+                'payment',
+                'delivery',
+            ]),
+        ], 201);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Créer réellement la commande
+    |--------------------------------------------------------------------------
+    |
+    | Cette méthode est appelée :
+    | - directement pour le paiement à la livraison
+    | - après le capture PayPal pour un paiement PayPal
+    |
+    */
+
+    public function createOrderFromCart(
+        User $user,
+        Address $address,
+        Cart $cart,
+        string $paymentMode = 'paiement_a_la_livraison',
+        string $paymentStatus = 'en_attente',
+        ?string $paymentReference = null
+    ) {
+        return DB::transaction(function () use (
+            $user,
+            $address,
+            $cart,
+            $paymentMode,
+            $paymentStatus,
+            $paymentReference
+        ) {
             $sousTotal = 0;
 
             foreach ($cart->items as $item) {
-
                 $prixNormal = (float) $item->product->prix;
 
                 $prixPromotionnel =
@@ -150,6 +187,12 @@ class OrderController extends Controller
                 $fraisLivraison -
                 $reduction;
 
+            /*
+            |--------------------------------------------------------------------------
+            | Création de la commande
+            |--------------------------------------------------------------------------
+            */
+
             $order = Order::create([
                 'numero' =>
                     'CMD-' . strtoupper(Str::random(8)),
@@ -176,8 +219,13 @@ class OrderController extends Controller
                     'en_attente',
             ]);
 
-            foreach ($cart->items as $item) {
+            /*
+            |--------------------------------------------------------------------------
+            | Création des lignes de commande
+            |--------------------------------------------------------------------------
+            */
 
+            foreach ($cart->items as $item) {
                 $prixNormal = (float) $item->product->prix;
 
                 $prixPromotionnel =
@@ -215,21 +263,36 @@ class OrderController extends Controller
                         $prix * $item->quantite,
                 ]);
 
+                /*
+                |--------------------------------------------------------------------------
+                | Diminuer le stock
+                |--------------------------------------------------------------------------
+                */
+
                 $item->product->decrement(
                     'stock',
                     $item->quantite
                 );
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Paiement
+            |--------------------------------------------------------------------------
+            */
+
             Payment::create([
                 'order_id' =>
                     $order->id,
 
                 'mode' =>
-                    'paiement_a_la_livraison',
+                    $paymentMode,
 
                 'statut' =>
-                    'en_attente',
+                    $paymentStatus,
+
+                'reference' =>
+                    $paymentReference,
             ]);
 
             /*
@@ -271,7 +334,6 @@ class OrderController extends Controller
                 ->unique();
 
             foreach ($vendeurIds as $vendeurId) {
-
                 Notification::create([
                     'user_id' =>
                         $vendeurId,
@@ -303,7 +365,6 @@ class OrderController extends Controller
                 ->pluck('id');
 
             foreach ($adminIds as $adminId) {
-
                 Notification::create([
                     'user_id' =>
                         $adminId,
@@ -324,27 +385,17 @@ class OrderController extends Controller
                 ]);
             }
 
+            /*
+            |--------------------------------------------------------------------------
+            | Vider le panier
+            |--------------------------------------------------------------------------
+            */
+
             $cart->items()->delete();
 
             return $order;
         });
-
-        return response()->json([
-            'message' =>
-                'Commande créée avec succès.',
-
-            'order' =>
-                $order->load([
-                    'client',
-                    'items.product',
-                    'items.shop',
-                    'address',
-                    'payment',
-                    'delivery',
-                ]),
-        ], 201);
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -392,7 +443,6 @@ class OrderController extends Controller
         );
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | CLIENT / ADMIN - Modifier une commande
@@ -409,7 +459,6 @@ class OrderController extends Controller
             $user->role &&
             $user->role->nom === 'Administrateur'
         ) {
-
             $request->validate([
                 'statut' => [
                     'required',
@@ -496,7 +545,6 @@ class OrderController extends Controller
             ->pluck('id');
 
         foreach ($adminIds as $adminId) {
-
             Notification::create([
                 'user_id' =>
                     $adminId,
@@ -533,7 +581,6 @@ class OrderController extends Controller
         ]);
     }
 
-
     /*
     |--------------------------------------------------------------------------
     | VENDEUR - Liste des commandes
@@ -567,7 +614,6 @@ class OrderController extends Controller
 
         return response()->json($orders);
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -650,7 +696,6 @@ class OrderController extends Controller
             ->pluck('id');
 
         foreach ($adminIds as $adminId) {
-
             Notification::create([
                 'user_id' =>
                     $adminId,

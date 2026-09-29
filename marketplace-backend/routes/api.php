@@ -19,7 +19,6 @@ use App\Http\Controllers\ShopController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-
 /*
 |--------------------------------------------------------------------------
 | Public Routes
@@ -36,6 +35,20 @@ Route::post('/login', [
     'login'
 ]);
 
+/*
+|--------------------------------------------------------------------------
+| PayPal Callback
+|--------------------------------------------------------------------------
+|
+| Cette route doit rester publique car PayPal redirige
+| l'utilisateur vers cette URL après le paiement.
+|
+*/
+
+Route::get('/paypal/callback', [
+    PaymentController::class,
+    'paypalCallback'
+]);
 
 /*
 |--------------------------------------------------------------------------
@@ -61,7 +74,6 @@ Route::middleware('auth:sanctum')->group(function () {
         'logout'
     ]);
 
-
     /*
     |--------------------------------------------------------------------------
     | Admin Dashboard
@@ -72,7 +84,6 @@ Route::middleware('auth:sanctum')->group(function () {
         AdminDashboardController::class,
         'index'
     ])->middleware('role:Administrateur');
-
 
     /*
     |--------------------------------------------------------------------------
@@ -102,7 +113,6 @@ Route::middleware('auth:sanctum')->group(function () {
             'destroy'
         ]);
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -138,7 +148,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Shops
@@ -149,7 +158,6 @@ Route::middleware('auth:sanctum')->group(function () {
         'shops',
         ShopController::class
     );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -185,7 +193,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Product Images
@@ -209,7 +216,6 @@ Route::middleware('auth:sanctum')->group(function () {
             'destroy'
         ]);
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -242,7 +248,6 @@ Route::middleware('auth:sanctum')->group(function () {
         'clear'
     ]);
 
-
     /*
     |--------------------------------------------------------------------------
     | Addresses
@@ -253,7 +258,6 @@ Route::middleware('auth:sanctum')->group(function () {
         'addresses',
         AddressController::class
     );
-
 
     /*
     |--------------------------------------------------------------------------
@@ -281,7 +285,6 @@ Route::middleware('auth:sanctum')->group(function () {
         'update'
     ]);
 
-
     /*
     |--------------------------------------------------------------------------
     | Orders - Vendeur
@@ -301,7 +304,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Payments
@@ -318,6 +320,20 @@ Route::middleware('auth:sanctum')->group(function () {
         'store'
     ]);
 
+    /*
+    |--------------------------------------------------------------------------
+    | PayPal
+    |--------------------------------------------------------------------------
+    |
+    | Cette route crée uniquement la commande PayPal.
+    | Aucune commande Marketplace n'est créée ici.
+    |
+    */
+
+    Route::post('/orders/payment/paypal', [
+        PaymentController::class,
+        'createPayPalPayment'
+    ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -350,7 +366,6 @@ Route::middleware('auth:sanctum')->group(function () {
             'store'
         ]);
     });
-
 
     /*
     |--------------------------------------------------------------------------
@@ -386,7 +401,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Favorites
@@ -407,7 +421,6 @@ Route::middleware('auth:sanctum')->group(function () {
         FavoriteController::class,
         'destroy'
     ]);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -434,7 +447,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ReviewController::class,
         'destroy'
     ]);
-
 
     /*
     |--------------------------------------------------------------------------
@@ -467,7 +479,6 @@ Route::middleware('auth:sanctum')->group(function () {
         'markAllAsRead'
     ]);
 
-
     /*
     |--------------------------------------------------------------------------
     | Commissions
@@ -492,7 +503,6 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
-
     /*
     |--------------------------------------------------------------------------
     | Admin Test
@@ -500,11 +510,8 @@ Route::middleware('auth:sanctum')->group(function () {
     */
 
     Route::get('/admin-test', function () {
-
         return response()->json([
-            'message' =>
-                'Bienvenue Administrateur',
+            'message' => 'Bienvenue Administrateur',
         ]);
-
     })->middleware('role:Administrateur');
 });
